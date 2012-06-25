@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+
+from __future__ import absolute_import
+import sys, os.path, logging, optparse, time, os, sys, json
+from sentry import core
+from sentry import errors
+from sentry import __version__ as ver
+
+log = logging.getLogger('sentry')
+
+LOG_FORMAT = '[%(asctime)s] [%(name)s] %(levelname)s: %(message)s'
+
+
+def main():
+    if len(sys.argv) == 1:
+        sys.argv.append('-h')
+            
+    parser = optparse.OptionParser(version='%prog ' + ver, usage='%prog [options] command', description='sentry is dns for fun and profit', epilog='run ./sentry --config FILENAME to start server')
+    
+    parser.add_option("-c","--config", dest="config", help="config file location", action="store", default=None)
+    parser.add_option("-v","--verbose", dest="verbose", help="runs in verbose mode", action="store_true", default=False)    
+
+    (options,args) = parser.parse_args()
+    
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(LOG_FORMAT,datefmt='%m/%d/%Y %H:%M:%S')
+    handler.setFormatter(formatter)     
+    log.addHandler(handler)
+    log.setLevel(logging.INFO)
+    
+    if options.verbose:
+        log.setLevel(logging.DEBUG)        
+                
+    log.debug('running in debug mode - version: %s' % ver)
+    
+    if options.config is None:
+        print('sentry needs a config, please do --config $FILENAME ')
+        sys.exit(1)
+        
+        
+    if not os.path.exists(options.config):
+        print('config file %s does not exist' % options.config)
+        sys.exit(1)
+    
+    log.info('using config: %s' % options.config)    
+          
+    try:
+        sentry = core.Sentry(json.load(open(options.config)))
+        sentry.start()
+        
+    except errors.Error,v:
+        log.debug(v)
+        print('error: %s' % v)
+                 
+if __name__ == '__main__':
+    main()
