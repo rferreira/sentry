@@ -1,0 +1,2 @@
+dnspython==1.10.0
+wsgiref==0.1.2
