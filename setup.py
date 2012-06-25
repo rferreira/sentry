@@ -1,6 +1,8 @@
 import os
 from setuptools import setup
-from  sentry import __version__ as version import tagline
+from sentry import __version__ as version
+from sentry import tagline
+
 setup(
     name = "sentry",
     version = version,
