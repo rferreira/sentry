@@ -17,6 +17,6 @@ setup(
         "Topic :: Utilities",
         'License :: OSI Approved :: Apache Software License'
     ],
-    install_requires=['dnspython'],
+    install_requires=['dnspython==1.10.0'],
     scripts=['scripts/sentry']
 )
