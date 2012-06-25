@@ -8,11 +8,10 @@ RE_BLOCK = re.compile(r'^block (?P<domain>.*)$',flags=re.MULTILINE)
 RE_LOG = re.compile(r'^log (?P<domain>.*)$',flags=re.MULTILINE)
 RE_REDIRECT = re.compile(r'^redirect (?P<domain>.*) to (?P<destination>.*)$',flags=re.MULTILINE)
 
-def parse(entries):
-
-	ruleset = []
-
-	for line in entries:
+def parse(settings):
+	ruleset = []	
+	
+	for line in settings['rules']:
 		log.debug('parsing: %s' % line)
 		
 		# block
@@ -21,7 +20,7 @@ def parse(entries):
 			try:
 				log.debug('found block rule, processing it')
 				domain = match.group('domain').strip()
-				ruleset.append(rules.BlockRule(domain))
+				ruleset.append(rules.BlockRule(settings,domain))
 			except Exception as e:
 				log.error('syntax error in line: %s - skipping' % line)	
 				log.exception(e)
@@ -31,7 +30,7 @@ def parse(entries):
 			try:
 				log.debug('found logging rule, processing it')
 				domain = match.group('domain').strip()
-				ruleset.append(rules.LoggingRule(domain))
+				ruleset.append(rules.LoggingRule(settings, domain))
 			except Exception as e:
 				log.error('syntax error in line: %s - skipping' % line)	
 				log.exception(e)
@@ -43,7 +42,7 @@ def parse(entries):
 				log.debug('found redirect rule, processing it')
 				domain = match.group('domain').strip()
 				destination = match.group('destination').strip()
-				ruleset.append(rules.RedirectRule(domain,destination))
+				ruleset.append(rules.RedirectRule(settings, domain,destination))
 			except Exception as e:
 				log.error('syntax error in line: %s - skipping' % line)	
 				log.exception(e)

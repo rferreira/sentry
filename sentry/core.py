@@ -1,6 +1,7 @@
 import sys, logging, re, random
 import dns
 import dns.message
+import dns.query
 
 import sentry.parser
 from sentry.errors import Error
@@ -12,7 +13,7 @@ class Sentry(object):
     """
     sentry is dns for fun and profit
     """ 
-    REQUIRED_CONFIG_ENTRIES = ['port', 'rules', 'upstream', 'host']
+    REQUIRED_CONFIG_ENTRIES = ['port', 'rules', 'upstream', 'host', 'catchall_address']
 
     def __init__(self, settings):
         log.debug('settings:')
@@ -20,11 +21,8 @@ class Sentry(object):
         self.settings = settings  
 
         log.debug(settings.keys())
-        # making sure all required entries an in the config
-        # if self.REQUIRED_CONFIG_ENTRIES not in settings.keys():
-        #     raise Error('your config file is missing some imporant required entries: %s ' % set(self.REQUIRED_CONFIG_ENTRIES) - set(settings.keys()) )
 
-        self.ruleset = sentry.parser.parse(settings['rules'])
+        self.ruleset = sentry.parser.parse(settings)
 
     def process(self, packet):        
         message = dns.message.from_wire(packet)            
@@ -33,7 +31,7 @@ class Sentry(object):
         for rule in self.ruleset:
             m = rule.RE.search(str(message.question[0].name))
             if m is not None:
-                log.debug('wow found a rule that matches (%s).... dispatching' % rule)
+                log.debug('wow found a rule that matches (%s) - dispatching' % rule)
                 response = rule.dispatch(message)
                 if response is None:
                     break

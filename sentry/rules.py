@@ -4,9 +4,10 @@ import dns
 log = logging.getLogger(__name__)
 
 class Rule(object):
-	def __init__(self, domain):
+	def __init__(self, settings, domain):
 		self.domain = domain
 		self.RE = re.compile(domain)
+		self.settings = settings
 
 	def dispatch(self,request):
 		log.info('dummy act being called, nothing will happen')
@@ -20,12 +21,12 @@ class RedirectRule(Rule):
 	redirects a query using a CNAME
 	"""
 
-	def __init__(self, domain, dst):
+	def __init__(self, settings, domain, dst):
 		self.dst = str(dst)
 		if not self.dst.endswith('.'):
 			self.dst += '.'
 			
-		super(RedirectRule,self).__init__(domain)
+		super(RedirectRule,self).__init__(settings, domain)
 
 	def dispatch(self,request):
 		response = dns.message.make_response(request)
@@ -37,11 +38,11 @@ class RedirectRule(Rule):
 
 class BlockRule(Rule):		
 	def dispatch(self,request):
+		to = str(self.settings['catchall_address'])		
 		response = dns.message.make_response(request)
 		response.answer.append(
-			dns.rrset.from_text(request.question[0].name, 1000, dns.rdataclass.IN, request.question[0].rdclass, '74.125.224.64')
-		)
-
+			dns.rrset.from_text(request.question[0].name, 1000, dns.rdataclass.IN, request.question[0].rdclass, to )
+			)
 		return response.to_wire()
 
 class LoggingRule(Rule):
