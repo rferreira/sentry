@@ -4,7 +4,7 @@ from __future__ import absolute_import
 import sys, os.path, logging, optparse, time, os, sys, json
 from sentry import core
 from sentry import errors
-from sentry import __version__ as ver
+from sentry import __version__ as ver import tagline
 
 log = logging.getLogger('sentry')
 
@@ -15,7 +15,7 @@ def main():
     if len(sys.argv) == 1:
         sys.argv.append('-h')
             
-    parser = optparse.OptionParser(version='%prog ' + ver, usage='%prog [options] command', description='sentry is dns for fun and profit', epilog='run ./sentry --config FILENAME to start server')
+    parser = optparse.OptionParser(version='%prog ' + ver, usage='%prog [options] command', description=tagline, epilog='run ./sentry --config FILENAME to start server')
     
     parser.add_option("-c","--config", dest="config", help="config file location", action="store", default=None)
     parser.add_option("-v","--verbose", dest="verbose", help="runs in verbose mode", action="store_true", default=False)    
