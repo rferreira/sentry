@@ -4,7 +4,8 @@ from __future__ import absolute_import
 import sys, os.path, logging, optparse, time, os, sys, json
 from sentry import core
 from sentry import errors
-from sentry import __version__ as ver import tagline
+from sentry import __version__ as ver
+from sentry import tagline
 
 log = logging.getLogger('sentry')
 
