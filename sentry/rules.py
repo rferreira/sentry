@@ -1,18 +1,24 @@
 import sys, logging, re, random
-import dns, dns.query
+import dns, dns.query, dns.name
+from sentry import stats, errors
 
 log = logging.getLogger(__name__)
 RETRIES = 3
 
 class Rule(object):
-    """ Parent class for all rules """
+    """ 
+    Parent class for all rules.
+
+    - rules can return either None or a valid response. None responses are ignored.  
+
+    """
 
     def __init__(self, settings, domain):
         self.domain = domain
         self.RE = re.compile(domain)
         self.settings = settings
 
-    def dispatch(self,message):
+    def dispatch(self, message, *args, **extra):
         log.info('dummy act being called, nothing will happen')
         pass
 
@@ -30,7 +36,7 @@ class RedirectRule(Rule):
             
         super(RedirectRule,self).__init__(settings, domain)
 
-    def dispatch(self,message):
+    def dispatch(self, message, *args, **extra):
         response = dns.message.make_response(message)
         response.answer.append(
             dns.rrset.from_text(message.question[0].name, 1000, dns.rdataclass.IN, dns.rdatatype.CNAME, self.dst)
@@ -39,7 +45,7 @@ class RedirectRule(Rule):
         return response.to_wire()
 
 class BlockRule(Rule):      
-    def dispatch(self,message):
+    def dispatch(self, message, *args, **extra):
         to = str(self.settings['catchall_address'])     
         response = dns.message.make_response(message)
         response.answer.append(
@@ -51,13 +57,15 @@ class LoggingRule(Rule):
     """
     logs the query and nothing else 
     """ 
-    def dispatch(self,message):
-        log.info('logging query: %s matched by rule: %s' % (message.question[0].name, self.domain) )
+    def dispatch(self,message, *args, **extras):
+        context = extras.pop('context', {})
+        log.info('logging query: %s matched by rule: %s with context: %s' % (message.question[0].name, self.domain, context) )
+        return None
                 
 
 class ResolveRule(Rule):    
     """
-    resolves a query using a diff  a specific DNS Server 
+    resolves a query using a specific DNS Server 
     """    
 
     def __init__(self, settings, domain, resolvers):
@@ -66,16 +74,29 @@ class ResolveRule(Rule):
     
         super(ResolveRule,self).__init__(settings, domain)
 
-    def dispatch(self,message):        
+    def dispatch(self, message, *args, **extra):        
         for x in xrange(RETRIES):                  
             try:
                 response = dns.query.udp(message, random.choice(self.resolvers))   
-                return response.to_wire()
-                    
+                return response.to_wire()                    
             except Exception as e:
                 log.exception(e)
 
-            log.error('could not resolve query %s using %s' % (message, self.resolvers))
-            return None
+            raise errors.NetworkError('could not resolve query %s using %s' % (message, self.resolvers))            
 
+class RewriteRule(Rule):
+    """
+    applies a regex to a inbound request
+
+    # note: rewrite rules are experimental and might not work with all DNS clients
+    """
+    def __init__(self, settings, domain, pattern):
+        self.pattern = pattern
+        super(RewriteRule,self).__init__(settings, domain)
+
+    def dispatch(self, message, *args, **extra):        
+        log.debug('domain: %s pattern: %s message: %s' % (self.domain, self.pattern, message))        
+        message.question[0].name = dns.name.from_text(self.pattern)
+        
+        return None
         
