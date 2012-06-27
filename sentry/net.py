@@ -152,13 +152,13 @@ class Server(asyncore.dispatcher):
 
     def stop(self):
         self.running = False
-        self.stats.end()
-        log.info('network node stopped')
+        self.stats.end()        
+        log.info('network node stopped.')        
             
     def status_thread(self):
         time.sleep(60)
         while True:            
-            log.info('packets in: %d packets out: %d uptime: %d sec' % (self.packets_rcv, self.packets_sent,  time.time() - self.stats.get_start() ))
+            log.info('packets in: %d packets out: %d buffer_in: %d buffer_out: %d uptime: %d sec' % (self.packets_rcv, self.packets_sent,  len(self.buffer_in), len(self.buffer_out), time.time() - self.stats.get_start() ))
             time.sleep(60*60*1)
 
         

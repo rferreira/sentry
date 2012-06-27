@@ -13,12 +13,13 @@ RE_LOG = re.compile(r'^log (?P<domain>.*)$',flags=re.MULTILINE)
 # redirect ^(.*)google.com to nytimes.com
 RE_REDIRECT = re.compile(r'^redirect (?P<domain>.*) to (?P<destination>.*)$',flags=re.MULTILINE)
 
-## future ideas (not yet implemented in the rule language)
+# resolve ^(.*)example using 8.8.4.4, 8.8.8.8
+RE_RESOLVE = re.compile(r'^resolve (?P<domain>.*) using (?P<resolvers>.*)$',flags=re.MULTILINE)
 
+## future ideas (not yet implemented in the rule language)
 # redirect ^(.*)example.com to nytimes.com using A
 # redirect ^(.*)example.com to nytimes.com using CNAME
 # rewrite ^(.*)example.com using REGEX
-# resolve ^(.*)example.com using 1.1.1.1
 
 def parse(settings):
 	ruleset = []	
@@ -55,6 +56,18 @@ def parse(settings):
 				domain = match.group('domain').strip()
 				destination = match.group('destination').strip()
 				ruleset.append(rules.RedirectRule(settings, domain,destination))
+			except Exception as e:
+				log.error('syntax error in line: %s - skipping' % line)	
+				log.exception(e)
+
+		# resolve
+		match = RE_RESOLVE.search(line)		
+		if match is not None:
+			try:
+				log.debug('found resolve rule, processing it')
+				domain = match.group('domain').strip()
+				destination = match.group('resolvers').strip()
+				ruleset.append(rules.ResolveRule(settings, domain, destination))
 			except Exception as e:
 				log.error('syntax error in line: %s - skipping' % line)	
 				log.exception(e)
