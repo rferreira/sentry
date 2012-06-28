@@ -1,6 +1,7 @@
 import asyncore
 import logging, sys, os, socket, time, threading
 from collections import deque
+from multiprocessing import Queue
 
 from sentry import errors
 from sentry import stats
@@ -12,7 +13,7 @@ class Server(asyncore.dispatcher):
     """
     Handles all network io
     """
-    def __init__(self, host, port, onreceive):
+    def __init__(self, host, port, onreceive, threadpool_size=2):
         asyncore.dispatcher.__init__(self)
         self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)                
 
@@ -25,6 +26,18 @@ class Server(asyncore.dispatcher):
 
         self.onreceive = onreceive
 
+        self.request_queue = Queue()
+
+        # build threadpool 
+        self.threadpool = [
+            threading.Thread(target=self.worker) for i in range(threadpool_size)
+        ]
+
+        for thread in self.threadpool:
+            thread.setDaemon(True)
+            thread.start()
+
+
         self.bind((host, port))
         log.info("Server started on %s:%s" %  (self.addr) )          
                 
@@ -35,15 +48,8 @@ class Server(asyncore.dispatcher):
             return
         stats.add('net.packets_received', 1)
         stats.add('net.bytes_received', len(data))
+        self.request_queue.put( (data, addr ))
 
-        try:
-            response = self.onreceive(data, {
-                'client' : '%s:%s' % (addr),
-                'server' : '%s:%s' % (self.host, self.port)
-                })
-            self.buffer_out.append( (addr, response))
-        except Exception as e:
-            log.exception(e)
 
 
     def handle_close(self):
@@ -81,5 +87,20 @@ class Server(asyncore.dispatcher):
         self.running = False
         log.debug('network node stopped.') 
         return
+
+    def worker(self):
+        log.debug('threading starting...')
+        while True:
+            data, addr = self.request_queue.get()
+            try:
+                response = self.onreceive(data, {
+                    'client' : '%s:%s' % (addr),
+                    'server' : '%s:%s' % (self.host, self.port)
+                    })
+
+                self.buffer_out.append( (addr, response))
+            except Exception as e:
+                log.exception(e)
+
 
         

@@ -10,7 +10,7 @@ import sentry.parser
 from sentry.errors import Error
 from sentry.net import Server
 from sentry import rules
-from sentry import stats
+from sentry import stats, domain_stats
 from sentry.counter import count_calls
 
 log = logging.getLogger(__name__)
@@ -30,11 +30,11 @@ class Sentry(object):
 
         self.ruleset = sentry.parser.parse(settings)
 
-        stats.set_type('response_time', 'float')
+        stats.set_type('response_time', 'int')
 
     def process(self, packet, context):        
         stats.inc_ops('requests')
-        start_time = time.time()
+        start_time = time.clock()
 
         message = dns.message.from_wire(packet)   
         message.__class__.__str__ = _pprint_message
@@ -48,16 +48,17 @@ class Sentry(object):
                 log.debug('resolving query: %s using : %s ' % (message,rule) )
                 response = rule.dispatch(message, context=context)
                 
+                # updating stats for this rule being called
+                stats.add(rule.__class__,1)
+
                 # rules that return none ignored 
                 if response is None:
                     continue
 
                 # updating stats
                 stats.dec_ops('requests')
-                stats.add_avg('response_time_msec', round((time.time() - start_time)*1000) )
-                stats.add(rule.__class__,1)
+                stats.add_avg('response_time_msec', (time.clock() - start_time)*1000 )                
                 stats.add('hits_for(%s)' % message.question[0].name,1)
-
 
                 # sending rule response back to client
                 return response
