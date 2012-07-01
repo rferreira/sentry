@@ -26,7 +26,7 @@ The example above tells sentry to:
 * listen on port 5300 (udp)
 * resolve all inbound queries using DNS servers 8.8.4.4 and 8.8.8.8 (google's public DNS servers)
 
-#### Running it
+### Running it
 
 To run sentry you just need to pass it the config file you created: 
 
@@ -40,7 +40,7 @@ For the prestige, you can use dig to verify sentry is responding to requests:
     dig @localhost -p 5300 nytimes.com
 
 
-### Rules and doing things you never thought possible with DNS
+### Rules - doing things you never thought possible with DNS
 
 Sentry allows you to log, block, rewrite, redirect and resolve queries based upon simple rules that are matched, in order, against the inbound DNS query. 
 
