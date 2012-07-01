@@ -1,6 +1,6 @@
 ### sentry - dns for fun and profit!
 
-Sentry is a DNS proxy that allows you to inspect, block, rewrite, redirect and resolve queries. 
+Sentry is a DNS proxy that allows you to inspect, block, rewrite, redirect and resolve queries in-flight. 
 
 
 ### Installing
@@ -26,7 +26,7 @@ The example above tells sentry to:
 * listen on port 5300 (udp)
 * resolve all inbound queries using DNS servers 8.8.4.4 and 8.8.8.8 (google's public DNS servers)
 
-## Running it
+#### Running it
 
 To run sentry you just need to pass it the config file you created: 
 
