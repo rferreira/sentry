@@ -90,6 +90,7 @@ A resolve rule tells sentry to return to resolve all queries matching a certain 
     ""resolve ^(.*)facebook.com using 10.10.1.2 ","
     		
 \* If you would like your sentry server to resolve all inbound requests you must include at the bottom of your rules list a catch all entry like below: 
+
     "resolve ^(.*) using 8.8.4.4, 8.8.8.8"
     
 **Here's an example of a configuration file including multiple rules:**
