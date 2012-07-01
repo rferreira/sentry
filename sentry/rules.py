@@ -1,9 +1,15 @@
 import sys, logging, re, random
-import dns, dns.query, dns.name
+
+import dns
+import dns.rrset
+import dns.query
+import dns.name
+
 from sentry import stats, errors
 
 log = logging.getLogger(__name__)
 RETRIES = 3
+DEFAULT_TTL = 300 
 
 class Rule(object):
     """ 
@@ -18,7 +24,7 @@ class Rule(object):
         self.RE = re.compile(domain)
         self.settings = settings
 
-    def dispatch(self, message, *args, **extra):
+    def dispatch(self, message, *args, **extras):
         log.info('dummy act being called, nothing will happen')
         pass
 
@@ -36,21 +42,23 @@ class RedirectRule(Rule):
             
         super(RedirectRule,self).__init__(settings, domain)
 
-    def dispatch(self, message, *args, **extra):
+    def dispatch(self, message, *args, **extras):
         response = dns.message.make_response(message)
         response.answer.append(
-            dns.rrset.from_text(message.question[0].name, 1000, dns.rdataclass.IN, dns.rdatatype.CNAME, self.dst)
+            dns.rrset.from_text(message.question[0].name, DEFAULT_TTL, dns.rdataclass.IN, dns.rdatatype.CNAME, self.dst)
         )
 
         return response.to_wire()
 
-class BlockRule(Rule):      
-    def dispatch(self, message, *args, **extra):
-        to = str(self.settings['catchall_address'])     
-        response = dns.message.make_response(message)
-        response.answer.append(
-            dns.rrset.from_text(message.question[0].name, 1000, dns.rdataclass.IN, message.question[0].rdclass, to )
-            )
+class BlockRule(Rule):     
+    """
+    blocks the request by simply returning an empty response
+    """
+
+    def dispatch(self, message, *args, **extras):  
+        context = extras.pop('context', {})
+        log.warn('blocking query: %s matched by rule: %s with context: %s' % (message.question[0].name, self.domain, context) ) 
+        response = dns.message.make_response(message)   
         return response.to_wire()
 
 class LoggingRule(Rule):
@@ -74,7 +82,7 @@ class ResolveRule(Rule):
     
         super(ResolveRule,self).__init__(settings, domain)
 
-    def dispatch(self, message, *args, **extra):        
+    def dispatch(self, message, *args, **extras):        
         for x in xrange(RETRIES):                  
             try:
                 response = dns.query.udp(message, random.choice(self.resolvers))   
@@ -94,7 +102,7 @@ class RewriteRule(Rule):
         self.pattern = pattern
         super(RewriteRule,self).__init__(settings, domain)
 
-    def dispatch(self, message, *args, **extra):        
+    def dispatch(self, message, *args, **extras):        
         log.debug('domain: %s pattern: %s message: %s' % (self.domain, self.pattern, message))        
         message.question[0].name = dns.name.from_text(self.pattern)
         

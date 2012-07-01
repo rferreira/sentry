@@ -58,7 +58,7 @@ class Sentry(object):
                 # updating stats
                 stats.dec_ops('requests')
                 stats.add_avg('response_time_msec', (time.clock() - start_time)*1000 )                
-                stats.add('hits_for(%s)' % message.question[0].name,1)
+                domain_stats.add( str(message.question[0].name).strip(), 1)
 
                 # sending rule response back to client
                 return response
@@ -68,7 +68,7 @@ class Sentry(object):
 
     def start(self):
         log.info('starting, %d known rules' % (len(self.ruleset)))
-        server = Server(self.settings['host'], self.settings['port'], self.process)
+        server = Server(self.settings['host'], self.settings['port'], self.process, self.settings.get('threadpool_size',1) )
         server.start()
         
         log.info('shutting down, dumping stats:')
@@ -77,13 +77,23 @@ class Sentry(object):
 
     def usr1_signal_handler(self,num, frame):
         log.debug('dumping stats:')
-        x = prettytable.PrettyTable(['metric', 'type', 'value'])
+        x = prettytable.PrettyTable(['metric', 'value'])
         x.align = 'l'
 
         for r in stats.get_metrics():
-            x.add_row([r['name'], r['type'], r['value']])
+            x.add_row([r['name'], r['value']])
 
-        log.info('\n' + str(x) )
+        
+        y = prettytable.PrettyTable(['domain', 'queries'])
+        y.align = 'l'
+
+        for r in domain_stats.get_metrics(include_uptime=False):
+            y.add_row([r['name'], r['value']])
+
+        log.info('system stats: \n' + str(x) )
+        log.info('domain stats: \n ' + y.get_string(sortby='queries', reversesort=True) )
+
+
 
 
 

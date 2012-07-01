@@ -13,7 +13,7 @@ class Server(asyncore.dispatcher):
     """
     Handles all network io
     """
-    def __init__(self, host, port, onreceive, threadpool_size=2):
+    def __init__(self, host, port, onreceive, threadpool_size):
         asyncore.dispatcher.__init__(self)
         self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)                
 
@@ -28,6 +28,8 @@ class Server(asyncore.dispatcher):
 
         self.request_queue = Queue()
 
+        log.debug('using a threadpool of size: %d' % threadpool_size)
+        
         # build threadpool 
         self.threadpool = [
             threading.Thread(target=self.worker) for i in range(threadpool_size)
@@ -70,7 +72,7 @@ class Server(asyncore.dispatcher):
                   
     def writable(self):
         if len(self.buffer_out) > 0:
-            return 1
+            return True
             
     def handle_error(self):
         log.exception(sys.exc_value)
