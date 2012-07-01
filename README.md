@@ -3,13 +3,13 @@
 Sentry is a DNS proxy that allows you to inspect, block, rewrite, redirect and resolve queries. 
 
 
-## Installing
+### Installing
 
 1. Download sentry 
 2. pip install . (in the directory containing sentry)
 
 
-## Configuring
+### Configuring
 
 You should start up with a basic json config file like this: 
 
@@ -40,7 +40,7 @@ For the prestige, you can use dig to verify sentry is responding to requests:
     dig @localhost -p 5300 nytimes.com
 
 
-## Rules and doing things you never thought possible with DNS
+### Rules and doing things you never thought possible with DNS
 
 Sentry allows you to log, block, rewrite, redirect and resolve queries based upon simple rules that are matched, in order, against the inbound DNS query. 
 
