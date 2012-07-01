@@ -119,8 +119,11 @@ A resolve rule tells sentry to return to resolve all queries matching a certain 
 Like metrics? Just send sentry a SIGUSR1 posix signal and bam! 
 
 sending the signal (replace $PID with sentry's process id):
-    $ kill -30 $PPID
+
+    $ kill -30 $PID
+
 output in the sentry log: 
+
     [07/01/2012 00:57:12] [sentry.core] INFO: system stats: 
     +-------------------------------------+---------------+
     | metric                              | value         |
