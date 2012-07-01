@@ -1,13 +1,11 @@
-### sentry - dns for fun and profit!
+### Sentry - dns for fun and profit!
 
 Sentry is a DNS proxy that allows you to inspect, block, rewrite, redirect and resolve queries in-flight. 
-
 
 ### Installing
 
 1. Download sentry 
 2. pip install . (in the directory containing sentry)
-
 
 ### Configuring
 
@@ -38,7 +36,6 @@ To run sentry you just need to pass it the config file you created:
 For the prestige, you can use dig to verify sentry is responding to requests:
 
     dig @localhost -p 5300 nytimes.com
-
 
 ### Rules - doing things you never thought possible with DNS
 
@@ -95,7 +92,6 @@ A resolve rule tells sentry to return to resolve all queries matching a certain 
 \* If you would like your sentry server to resolve all inbound requests you must include at the bottom of your rules list a catch all entry like below: 
     "resolve ^(.*) using 8.8.4.4, 8.8.8.8"
     
-
 **Here's an example of a configuration file including multiple rules:**
 
     {
@@ -117,4 +113,37 @@ A resolve rule tells sentry to return to resolve all queries matching a certain 
 
     	]	
     }
+
+### Sentry Metrics
+
+Like metrics? Just send sentry a SIGUSR1 posix signal and bam! 
+
+sending the signal (replace $PID with sentry's process id):
+    $ kill -30 $PPID
+output in the sentry log: 
+    [07/01/2012 00:57:12] [sentry.core] INFO: system stats: 
+    +-------------------------------------+---------------+
+    | metric                              | value         |
+    +-------------------------------------+---------------+
+    | net.bytes_received                  | 85            |
+    | net.bytes_sent                      | 458           |
+    | net.packets_received                | 3             |
+    | net.packets_sent                    | 3             |
+    | requests_pending                    | 0             |
+    | requests_total                      | 3             |
+    | response_time_msec_avg              | 3.07466666667 |
+    | response_time_msec_max              | 4.138         |
+    | response_time_msec_min              | 1.435         |
+    | uptime                              | 23.628207922  |
+    | <class 'sentry.rules.RedirectRule'> | 1             |
+    | <class 'sentry.rules.LoggingRule'>  | 2             |
+    | <class 'sentry.rules.ResolveRule'>  | 2             |
+    +-------------------------------------+---------------+
+    [07/01/2012 00:57:12] [sentry.core] INFO: domain stats: 
+     +--------------+---------+
+    | domain       | queries |
+    +--------------+---------+
+    | google.com.  | 2       |
+    | nytimes.com. | 1       |
+    +--------------+---------+
 
