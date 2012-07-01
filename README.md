@@ -2,7 +2,7 @@
 
 Sentry is a DNS proxy that allows you to inspect, block, rewrite and resolve queries
 
-## installing
+### installing
 
 1. Download sentry 
 2. pip install . (in the directory containing sentry)
