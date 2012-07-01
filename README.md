@@ -1,19 +1,30 @@
-{
-  "port" : 5300,
-	"host" : "0.0.0.0",
-	"rules" : [
-		"block ^(.*)youtube.com",		
-		"block ^(.*).xxx",
-		"log ^(.*)google.com",
+# sentry - dns for fun and profit!
 
-		"rewrite ^www.google.com to google.com",		
+Sentry is a DNS proxy that allows you to inspect, block, rewrite and resolve queries. 
 
-		"redirect ^(.*)nytimes.com to google.com",					
-		"redirect ^(.*)reddit.com to google.com",
 
-		"resolve ^(.*)facebook.com using 10.10.1.2 ",
-		"resolve ^(.*) using 8.8.4.4, 8.8.8.8"
-		
+## Installing
 
-	]	
-}
+1. Download sentry 
+2. pip install . (in the directory containing sentry)
+
+
+## Configuring
+
+You should start up with a basic json config file like this: 
+
+    {
+    	"port" : 5300,
+    	"host" : "0.0.0.0",
+    	"rules" : [
+    		"resolve ^(.*) using 8.8.4.4, 8.8.8.8"
+    	]	
+    }
+    
+The example above tells sentry to: 
+
+* listen on port 5300 (udp)
+* resolve all inbound queries using DNS servers 8.8.4.4 and 8.8.8.8 (google's public DNS servers)
+
+## Rules and doing things you never thought possible with DNS
+
