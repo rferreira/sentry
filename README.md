@@ -169,22 +169,22 @@ There is however a particular case in which what I just told you is a complete l
 
 Here's an example of a custom thread pool size:
 
-{
-    "port" : 5300,
-    "host" : "0.0.0.0",
-    "threadpool_size" : 4,
-    "rules" : [
-        "block ^(.*)youtube.com if type is MX",     
-        "block ^(.*).xxx",
-        "log ^(.*)google.com",
+    {
+        "port" : 5300,
+        "host" : "0.0.0.0",
+        "threadpool_size" : 4,
+        "rules" : [
+            "block ^(.*)youtube.com if type is MX",     
+            "block ^(.*).xxx",
+            "log ^(.*)google.com",
 
-        "rewrite ^www.google.com to google.com",        
+            "rewrite ^www.google.com to google.com",        
 
-        "redirect ^(.*)nytimes.com to google.com",                  
-        "redirect ^(.*)reddit.com to google.com",
+            "redirect ^(.*)nytimes.com to google.com",                  
+            "redirect ^(.*)reddit.com to google.com",
 
-        "resolve ^(.*)facebook.com using 10.10.1.2 ",
-        "resolve ^(.*) using 8.8.4.4, 8.8.8.8"
+            "resolve ^(.*)facebook.com using 10.10.1.2 ",
+            "resolve ^(.*) using 8.8.4.4, 8.8.8.8"
 
-    ]   
-}
+        ]   
+    }
