@@ -1,0 +1,250 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Sentry by rferreira</title>
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="javascripts/respond.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <!--[if lt IE 8]>
+    <link rel="stylesheet" href="stylesheets/ie.css">
+    <![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+  </head>
+  <body>
+      <div id="header">
+        <nav>
+          <li class="fork"><a href="https://github.com/rferreira/sentry">View On GitHub</a></li>
+          <li class="downloads"><a href="https://github.com/rferreira/sentry/zipball/master">ZIP</a></li>
+          <li class="downloads"><a href="https://github.com/rferreira/sentry/tarball/master">TAR</a></li>
+          <li class="title">DOWNLOADS</li>
+        </nav>
+      </div><!-- end header -->
+
+    <div class="wrapper">
+
+      <section>
+        <div id="title">
+          <h1>Sentry</h1>
+          <p>sentry is dns for fun and profit!</p>
+          <hr>
+          <span class="credits left">Project maintained by <a href="https://github.com/rferreira">rferreira</a></span>
+          <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="http://twitter.com/#!/michigangraham">mattgraham</a></span>
+        </div>
+
+        <h3>Sentry - dns for fun and profit!</h3>
+
+<p>Sentry is a DNS proxy that allows you to inspect, block, rewrite, redirect and resolve queries in-flight. </p>
+
+<h3>Installing</h3>
+
+<ol>
+<li>Download sentry </li>
+<li>python setup.py install</li>
+</ol><h3>Configuring</h3>
+
+<p>You should start up with a basic json config file like this: </p>
+
+<pre><code>{
+    "port" : 5300,
+    "host" : "0.0.0.0",
+    "rules" : [
+        "resolve ^(.*) using 8.8.4.4, 8.8.8.8"
+    ]   
+}
+</code></pre>
+
+<p>The example above tells sentry to: </p>
+
+<ul>
+<li>listen on port 5300 (udp)</li>
+<li>resolve all inbound queries using DNS servers 8.8.4.4 and 8.8.8.8 (google's public DNS servers)</li>
+</ul><h3>Running it</h3>
+
+<p>To run sentry you just need to pass it the config file you created: </p>
+
+<pre><code>$ sentry -c CONFIG 
+[07/01/2012 06:38:28] [sentry] INFO: using config: sentry.config
+[07/01/2012 06:38:28] [sentry.core] INFO: starting, 1 known rules
+[07/01/2012 06:38:28] [sentry.net] INFO: Server started on 0.0.0.0:5300
+</code></pre>
+
+<p>For the prestige, you can use dig to verify sentry is responding to requests:</p>
+
+<pre><code>dig @localhost -p 5300 nytimes.com
+</code></pre>
+
+<h3>Rules - doing things you never thought possible with DNS</h3>
+
+<p>Sentry allows you to log, block, rewrite, redirect and resolve queries based upon simple rules that are matched, in order, against the inbound DNS query. </p>
+
+<p><strong>Redirecting a query:</strong></p>
+
+<p>A redirect rule can redirect an inbound requests to nytimes.com to google.com with a CNAME response. </p>
+
+<pre><code>"redirect ^(.*)nytimes.com to google.com"
+</code></pre>
+
+<p>Now, for the prestige: </p>
+
+<pre><code>$ dig @localhost -p 5300 nytimes.com
+
+; &lt;&lt;&gt;&gt; DiG 9.7.3-P3 &lt;&lt;&gt;&gt; @localhost -p 5300 nytimes.com
+; (3 servers found)
+;; global options: +cmd
+;; Got answer:
+;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status: NOERROR, id: 56474
+;; flags: qr rd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 0
+;; WARNING: recursion requested but not available
+
+;; QUESTION SECTION:
+;nytimes.com.           IN  A
+
+;; ANSWER SECTION:
+nytimes.com.        300 IN  CNAME   google.com.
+
+;; Query time: 502 msec
+;; SERVER: 127.0.0.1#5300(127.0.0.1)
+;; WHEN: Sun Jul  1 00:37:17 2012
+;; MSG SIZE  rcvd: 50
+</code></pre>
+
+<p><strong>Logging a query:</strong></p>
+
+<p>A log rule tells sentry to log an inbound queries matching a certain regular expression</p>
+
+<pre><code>"log ^(.*)google.com"
+</code></pre>
+
+<p><strong>Blocking a query:</strong></p>
+
+<p>A block rule tells sentry to return an empty response to all queries matching a certain regular expression </p>
+
+<pre><code>"block ^(.*).xxx"
+</code></pre>
+
+<p>Blocking rules can also be conditional - <strong>new!</strong></p>
+
+<pre><code>"block ^(.*).google.com if type is MX"
+</code></pre>
+
+<p>A few more conditional examples:</p>
+
+<pre><code>"block ^(.*).google.com if type is MX and class is IN"
+"block ^(.*).google.com if class is IN"
+</code></pre>
+
+<p><strong>Resolving a query:</strong></p>
+
+<p>A resolve rule tells sentry to return to resolve all queries matching a certain regular expression using one, or more, upstream DNS servers</p>
+
+<pre><code>""resolve ^(.*)facebook.com using 10.10.1.2 ","
+</code></pre>
+
+<p>* If you would like your sentry server to resolve all inbound requests you must include at the bottom of your rules list a catch all entry like below: </p>
+
+<pre><code>"resolve ^(.*) using 8.8.4.4, 8.8.8.8"
+</code></pre>
+
+<p><strong>Here's an example of a configuration file including multiple rules:</strong></p>
+
+<pre><code>{
+    "port" : 5300,
+    "host" : "0.0.0.0",
+    "rules" : [
+        "block ^(.*)youtube.com",       
+        "block ^(.*).xxx",
+        "log ^(.*)google.com",
+
+        "rewrite ^www.google.com to google.com",        
+
+        "redirect ^(.*)nytimes.com to google.com",                  
+        "redirect ^(.*)reddit.com to google.com",
+
+        "resolve ^(.*)facebook.com using 10.10.1.2 ",
+        "resolve ^(.*) using 8.8.4.4, 8.8.8.8"
+
+
+    ]   
+}
+</code></pre>
+
+<h3>Sentry Metrics</h3>
+
+<p>Like metrics? Just send sentry a SIGUSR1 posix signal and bam! </p>
+
+<p>sending the signal (replace $PID with sentry's process id):</p>
+
+<pre><code>$ kill -30 $PID
+</code></pre>
+
+<p>output in the sentry log: </p>
+
+<pre><code>[07/01/2012 00:57:12] [sentry.core] INFO: system stats: 
++-------------------------------------+---------------+
+| metric                              | value         |
++-------------------------------------+---------------+
+| net.bytes_received                  | 85            |
+| net.bytes_sent                      | 458           |
+| net.packets_received                | 3             |
+| net.packets_sent                    | 3             |
+| requests_pending                    | 0             |
+| requests_total                      | 3             |
+| response_time_msec_avg              | 3.07466666667 |
+| response_time_msec_max              | 4.138         |
+| response_time_msec_min              | 1.435         |
+| uptime                              | 23.628207922  |
+| &lt;class 'sentry.rules.RedirectRule'&gt; | 1             |
+| &lt;class 'sentry.rules.LoggingRule'&gt;  | 2             |
+| &lt;class 'sentry.rules.ResolveRule'&gt;  | 2             |
++-------------------------------------+---------------+
+[07/01/2012 00:57:12] [sentry.core] INFO: domain stats: 
+ +--------------+---------+
+| domain       | queries |
++--------------+---------+
+| google.com.  | 2       |
+| nytimes.com. | 1       |
++--------------+---------+
+</code></pre>
+
+<h3>Performance</h3>
+
+<p>DNS is an inherently lightweight protocol (connection-less, small payload size, etc) so you should be able to handle many hundreds of connections per second in a single tight loop thread (sentry's default mode of operation).</p>
+
+<p>There is however a particular case in which what I just told you is a complete lie: slow upstream servers. If you are getting responses from upstream servers greater than single digits msec you might want to consider increasing the size of Sentry's internal thread pool so more requests are outstanding at once. </p>
+
+<p>Here's an example of a custom thread pool size:</p>
+
+<pre><code>{
+    "port" : 5300,
+    "host" : "0.0.0.0",
+    "threadpool_size" : 4,
+    "rules" : [
+        "block ^(.*)youtube.com if type is MX",     
+        "block ^(.*).xxx",
+        "log ^(.*)google.com",
+
+        "rewrite ^www.google.com to google.com",        
+
+        "redirect ^(.*)nytimes.com to google.com",                  
+        "redirect ^(.*)reddit.com to google.com",
+
+        "resolve ^(.*)facebook.com using 10.10.1.2 ",
+        "resolve ^(.*) using 8.8.4.4, 8.8.8.8"
+
+    ]   
+}
+</code></pre>
+      </section>
+
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><!--<![endif]-->
+    
+  </body>
+</html>
