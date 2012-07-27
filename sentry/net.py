@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 class Server(asyncore.dispatcher):
     """
     Handles all network io
-    """
+    """    
     def __init__(self, host, port, onreceive, threadpool_size):
         asyncore.dispatcher.__init__(self)
         self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)                
@@ -39,6 +39,7 @@ class Server(asyncore.dispatcher):
             thread.setDaemon(True)
             thread.start()
 
+        self.active_threads = 0
 
         self.bind((host, port))
         log.info("Server started on %s:%s" %  (self.addr) )          
@@ -51,8 +52,6 @@ class Server(asyncore.dispatcher):
         stats.add('net.packets_received', 1)
         stats.add('net.bytes_received', len(data))
         self.request_queue.put( (data, addr ))
-
-
 
     def handle_close(self):
         pass
@@ -94,6 +93,9 @@ class Server(asyncore.dispatcher):
         log.debug('threading starting...')
         while True:
             data, addr = self.request_queue.get()
+
+            self.active_threads += 1
+            stats.add_avg('net.active_threads', self.active_threads)
             try:
                 response = self.onreceive(data, {
                     'client' : '%s:%s' % (addr),
@@ -104,5 +106,8 @@ class Server(asyncore.dispatcher):
             except Exception as e:
                 log.exception(e)
 
+            self.active_threads -= 1  
+            stats.add_avg('net.active_threads', self.active_threads)
+              
 
         

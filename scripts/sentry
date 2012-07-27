@@ -5,11 +5,9 @@ import sys, os.path, logging, optparse, time, os, sys, json
 from sentry import core
 from sentry import errors
 from sentry import __version__ as ver
-from sentry import tagline
+from sentry import tagline, LOG_FORMAT
 
 log = logging.getLogger('sentry')
-
-LOG_FORMAT = '[%(asctime)s] [%(name)s] %(levelname)s: %(message)s'
 
 
 def main():
@@ -52,6 +50,10 @@ def main():
     except errors.Error,v:
         log.debug(v)
         print('error: %s' % v)
+
+    except ValueError as v:
+        log.fatal('syntax error in json file:')
+        raise v
                  
 if __name__ == '__main__':
     main()

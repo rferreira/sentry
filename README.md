@@ -82,6 +82,16 @@ A log rule tells sentry to log an inbound queries matching a certain regular exp
 A block rule tells sentry to return an empty response to all queries matching a certain regular expression 
 
     "block ^(.*).xxx"
+
+Blocking rules can also be conditional - **new!**
+
+    "block ^(.*).google.com if type is MX"
+
+
+A few more conditional examples:
+
+    "block ^(.*).google.com if type is MX and class is IN"
+    "block ^(.*).google.com if class is IN"
     
 **Resolving a query:**
 
@@ -151,3 +161,30 @@ output in the sentry log:
     | nytimes.com. | 1       |
     +--------------+---------+
 
+### Performance
+
+DNS is an inherently lightweight protocol (connection-less, small payload size, etc) so you should be able to handle many hundreds of connections per second in a single tight loop thread (sentry's default mode of operation).
+
+There is however a particular case in which what I just told you is a complete lie: slow upstream servers. If you are getting responses from upstream servers greater than single digits msec you might want to consider increasing the size of Sentry's internal thread pool so more requests are outstanding at once. 
+
+Here's an example of a custom thread pool size:
+
+{
+    "port" : 5300,
+    "host" : "0.0.0.0",
+    "threadpool_size" : 4,
+    "rules" : [
+        "block ^(.*)youtube.com if type is MX",     
+        "block ^(.*).xxx",
+        "log ^(.*)google.com",
+
+        "rewrite ^www.google.com to google.com",        
+
+        "redirect ^(.*)nytimes.com to google.com",                  
+        "redirect ^(.*)reddit.com to google.com",
+
+        "resolve ^(.*)facebook.com using 10.10.1.2 ",
+        "resolve ^(.*) using 8.8.4.4, 8.8.8.8"
+
+    ]   
+}

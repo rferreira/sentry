@@ -2,7 +2,7 @@
 	"port" : 5300,
 	"host" : "0.0.0.0",
 	"rules" : [
-		"block ^(.*)youtube.com",		
+		"block ^(.*)youtube.com if type is MX",		
 		"block ^(.*).xxx",
 		"log ^(.*)google.com",
 
@@ -13,7 +13,6 @@
 
 		"resolve ^(.*)facebook.com using 10.10.1.2 ",
 		"resolve ^(.*) using 8.8.4.4, 8.8.8.8"
-		
 
 	]	
 }

@@ -19,7 +19,7 @@ class Rule(object):
 
     """
 
-    def __init__(self, settings, domain):
+    def __init__(self, settings, domain, args):
         self.domain = domain
         self.RE = re.compile(domain)
         self.settings = settings
@@ -35,12 +35,17 @@ class RedirectRule(Rule):
     """
     redirects a query using a CNAME
     """
-    def __init__(self, settings, domain, dst):
-        self.dst = str(dst)
+    SYNTAX = [
+        # redirect ^(.*)google.com to nytimes.com
+        re.compile(r'^redirect (?P<domain>.*) to (?P<destination>.*)$',flags=re.MULTILINE)
+    ]
+
+    def __init__(self, settings, domain, args):
+        self.dst = str(args['destination'])
         if not self.dst.endswith('.'):
             self.dst += '.'
             
-        super(RedirectRule,self).__init__(settings, domain)
+        super(RedirectRule,self).__init__(settings, domain, args)
 
     def dispatch(self, message, *args, **extras):
         response = dns.message.make_response(message)
@@ -54,6 +59,10 @@ class BlockRule(Rule):
     """
     blocks the request by simply returning an empty response
     """
+    SYNTAX = [
+        # block ^(.*)exmaple.xxx
+        re.compile(r'^block (?P<domain>.*)$',flags=re.MULTILINE) 
+    ]
 
     def dispatch(self, message, *args, **extras):  
         context = extras.pop('context', {})
@@ -61,10 +70,62 @@ class BlockRule(Rule):
         response = dns.message.make_response(message)   
         return response.to_wire()
 
+class ConditionalBlockRule(Rule):
+    """
+    blocks the request based upon some simple if logic
+    """
+
+    SYNTAX = [ 
+        #block ^(.*).xxx if type is MX and class is ANY
+        re.compile(r'^block (?P<domain>.*) if type is (?P<type>.*) and class is (?P<class>.*)$',flags=re.MULTILINE),
+        # block ^(.*).xxx if type is TXT
+        re.compile(r'^block (?P<domain>.*) if type is (?P<type>.*)$',flags=re.MULTILINE),
+        # block ^(.*).xxx if class is ANY
+        re.compile(r'^block (?P<domain>.*) if class is (?P<class>.*)$',flags=re.MULTILINE),
+    ]
+
+    def __init__(self, settings, domain, args):
+    
+        self.rdtype  = args.get('type', None)
+        
+        if self.rdtype is not None:
+            self.rdtype  = dns.rdatatype.from_text( args.get('type', 'A' ))
+
+        self.rdclass = args.get('class', None)
+
+        if self.rdclass is not None:
+            self.rdclass = dns.rdataclass.from_text(args.get('class', 'IN' ))
+
+        super(ConditionalBlockRule,self).__init__(settings, domain, args)
+
+    def dispatch(self, message, *args, **extras):  
+        context = extras.pop('context', {})
+
+        q = message.question[0]
+
+
+        if self.rdtype is not None and q.rdtype != self.rdtype:
+            return None
+
+        if self.rdclass is not None and q.rdclass != self.rdclass:
+            return None
+        
+        log.warn('conditionally blocking query: %s matched by rule: %s with context: %s' % (message.question[0].name, self.domain, context) ) 
+
+        response = dns.message.make_response(message)  
+
+        return response.to_wire() 
+
+
 class LoggingRule(Rule):
     """
     logs the query and nothing else 
     """ 
+    SYNTAX = [
+        # log ^(.*)example.com
+        re.compile(r'^log (?P<domain>.*)$',flags=re.MULTILINE)
+    ]
+
     def dispatch(self,message, *args, **extras):
         context = extras.pop('context', {})
         log.info('logging query: %s matched by rule: %s with context: %s' % (message.question[0].name, self.domain, context) )
@@ -76,11 +137,18 @@ class ResolveRule(Rule):
     resolves a query using a specific DNS Server 
     """    
 
-    def __init__(self, settings, domain, resolvers):
+    SYNTAX = [
+        # resolve ^(.*)example using 8.8.4.4, 8.8.8.8
+        re.compile(r'^resolve (?P<domain>.*) using (?P<resolvers>.*)$',flags=re.MULTILINE)
+    ]
+
+    def __init__(self, settings, domain, args):        
+        resolvers = args.get('resolvers', None)
+
         self.resolvers =  map(lambda x: x.strip(), resolvers.split(','))
         log.debug('resolvers: %s' % self.resolvers)
     
-        super(ResolveRule,self).__init__(settings, domain)
+        super(ResolveRule,self).__init__(settings, domain, args)
 
     def dispatch(self, message, *args, **extras):        
         for x in xrange(RETRIES):                  
@@ -98,9 +166,15 @@ class RewriteRule(Rule):
 
     # note: rewrite rules are experimental and might not work with all DNS clients
     """
-    def __init__(self, settings, domain, pattern):
-        self.pattern = pattern
-        super(RewriteRule,self).__init__(settings, domain)
+
+    SYNTAX = [
+        # rewrite ^www.google.com to google.com
+        re.compile(r'^rewrite (?P<domain>.*) to (?P<pattern>.*)$',flags=re.MULTILINE)
+    ]
+
+    def __init__(self, settings, domain, args):        
+        self.pattern = args['pattern']
+        super(RewriteRule,self).__init__(settings, domain, args)
 
     def dispatch(self, message, *args, **extras):        
         log.debug('domain: %s pattern: %s message: %s' % (self.domain, self.pattern, message))        
