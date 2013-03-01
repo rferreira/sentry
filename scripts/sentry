@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
 from __future__ import absolute_import
-import sys, os.path, logging, optparse, time, os, sys, json
+import sys, os.path, logging, argparse, time, os, sys, json
 from sentry import core
 from sentry import errors
+from sentry import benchmark
 from sentry import __version__ as ver
 from sentry import tagline, LOG_FORMAT
 
@@ -13,40 +14,57 @@ log = logging.getLogger('sentry')
 def main():
     if len(sys.argv) == 1:
         sys.argv.append('-h')
-            
-    parser = optparse.OptionParser(version='%prog ' + ver, usage='%prog [options] command', description=tagline, epilog='run ./sentry --config FILENAME to start server')
-    
-    parser.add_option("-c","--config", dest="config", help="config file location", action="store", default=None)
-    parser.add_option("-v","--verbose", dest="verbose", help="runs in verbose mode", action="store_true", default=False)    
 
-    (options,args) = parser.parse_args()
-    
+    parser = argparse.ArgumentParser(description=tagline, epilog='run ./sentry --config FILENAME to start server')
+
+    parser.add_argument('--verbose', '-v', action='store_true', default=False)
+    parser.add_argument('--config', '-c', action='store', help='config file location')
+    parser.add_argument('--benchmark', '-b', action='store_true', help='runs sentry performance benchmark')
+
+    # benchmark options:
+    group = parser.add_argument_group('benchmark options')
+    group.add_argument('-s','--server', help='server port in server:port format')
+    group.add_argument('-n','--concurrency', default=1, help='defaults to 1')
+
+    options = parser.parse_args()
+
     handler = logging.StreamHandler()
     formatter = logging.Formatter(LOG_FORMAT,datefmt='%m/%d/%Y %H:%M:%S')
-    handler.setFormatter(formatter)     
+    handler.setFormatter(formatter)
     log.addHandler(handler)
     log.setLevel(logging.INFO)
-    
+
     if options.verbose:
-        log.setLevel(logging.DEBUG)        
-                
+        log.setLevel(logging.DEBUG)
+
     log.debug('running in debug mode - version: %s' % ver)
-    
+    log.info('sentry is arming itself...')
+
+
+    if options.benchmark:
+        if options.server is None:
+            print('please specify the server to benchmark with --server')
+            sys.exit(1)
+
+        b = benchmark.SentryBenchmark(server=options.server,threadpool_size=int(options.concurrency))
+        b.start()
+        sys.exit(0)
+
     if options.config is None:
         print('sentry needs a config, please do --config $FILENAME ')
         sys.exit(1)
-        
-        
+
+
     if not os.path.exists(options.config):
         print('config file %s does not exist' % options.config)
         sys.exit(1)
-    
-    log.info('using config: %s' % options.config)    
-          
+
+    log.info('using config: %s' % options.config)
+
     try:
         sentry = core.Sentry(json.load(open(options.config)))
         sentry.start()
-        
+
     except errors.Error,v:
         log.debug(v)
         print('error: %s' % v)
@@ -54,6 +72,6 @@ def main():
     except ValueError as v:
         log.fatal('syntax error in json file:')
         raise v
-                 
+
 if __name__ == '__main__':
     main()

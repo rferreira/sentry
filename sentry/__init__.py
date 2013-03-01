@@ -1,5 +1,5 @@
 
-__version__ = '0.3'
+__version__ = '0.5'
 tagline = 'sentry is dns for fun and profit!'
 
 from sentry import counter

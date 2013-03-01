@@ -19,43 +19,43 @@ def _pprint_message(message):
 class Sentry(object):
     """
     sentry is dns for fun and profit
-    """ 
+    """
     REQUIRED_CONFIG_ENTRIES = ['port', 'rules', 'host', 'catchall_address']
 
     def __init__(self, settings):
-        self.settings = settings  
+        self.settings = settings
         signal.signal(30, self.usr1_signal_handler)
 
         self.ruleset = sentry.parser.parse(settings)
 
         stats.set_type('response_time', 'int')
 
-    def process(self, packet, context):        
+    def process(self, packet, context):
         stats.inc_ops('requests')
         start_time = time.clock()
 
-        message = dns.message.from_wire(packet)   
+        message = dns.message.from_wire(packet)
         message.__class__.__str__ = _pprint_message
 
         log.debug(message)
         log.debug(context)
-       
+
         for rule in self.ruleset:
             m = rule.RE.search(str(message.question[0].name))
             if m is not None:
                 log.debug('resolving query: %s using : %s ' % (message,rule) )
                 response = rule.dispatch(message, context=context)
-                
+
                 # updating stats for this rule being called
                 stats.add(rule.__class__,1)
 
-                # rules that return none ignored 
+                # rules that return none ignored
                 if response is None:
                     continue
 
                 # updating stats
                 stats.dec_ops('requests')
-                stats.add_avg('response_time_msec', (time.clock() - start_time)*1000 )                
+                stats.add_avg('response_time_msec', (time.clock() - start_time)*1000 )
                 domain_stats.add( str(message.question[0].name).strip(), 1)
 
                 # sending rule response back to client
@@ -68,7 +68,7 @@ class Sentry(object):
         log.info('starting, %d known rules' % (len(self.ruleset)))
         server = Server(self.settings['host'], self.settings['port'], self.process, self.settings.get('threadpool_size',1) )
         server.start()
-        
+
         log.info('shutting down, dumping stats:')
 
         self.usr1_signal_handler(None, None)
@@ -81,7 +81,7 @@ class Sentry(object):
         for r in stats.get_metrics():
             x.add_row([r['name'], r['value']])
 
-        
+
         y = prettytable.PrettyTable(['domain', 'queries'])
         y.align = 'l'
 
