@@ -32,7 +32,7 @@ class Sentry(object):
 
     def process(self, packet, context):
         stats.inc_ops('requests')
-        start_time = time.clock()
+        start_time = time.time()
 
         message = dns.message.from_wire(packet)
         message.__class__.__str__ = _pprint_message
@@ -55,7 +55,7 @@ class Sentry(object):
 
                 # updating stats
                 stats.dec_ops('requests')
-                stats.add_avg('response_time_msec', (time.clock() - start_time)*1000 )
+                stats.add_avg('response_time_msec', (time.time() - start_time)*1000 )
                 domain_stats.add( str(message.question[0].name).strip(), 1)
 
                 # sending rule response back to client

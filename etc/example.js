@@ -1,7 +1,7 @@
 {
 	"port" : 5300,
 	"host" : "0.0.0.0",
-    "resolution_timeout" : 2,
+    "resolution_timeout" : 2.0,
 	"rules" : [
 		"block ^(.*)youtube.com if type is MX",
 		"block ^(.*).xxx",

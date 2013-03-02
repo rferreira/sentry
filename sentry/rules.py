@@ -10,6 +10,7 @@ from sentry import stats, errors
 log = logging.getLogger(__name__)
 RETRIES = 3
 DEFAULT_TTL = 300
+DEFAULT_TIMEOUT = 1.0
 
 class Rule(object):
     """
@@ -148,7 +149,8 @@ class ResolveRule(Rule):
         self.resolvers =  map(lambda x: x.strip(), resolvers.split(','))
         log.debug('resolvers: %s' % self.resolvers)
 
-        self.timeout = settings.get('resolution_timeout', 1)
+        # how long we wait on upstream dns servers before puking
+        self.timeout = settings.get('resolution_timeout', DEFAULT_TIMEOUT)
         log.debug('timeout: %d' % self.timeout)
 
         super(ResolveRule,self).__init__(settings, domain, args)
@@ -156,7 +158,7 @@ class ResolveRule(Rule):
     def dispatch(self, message, *args, **extras):
         for x in xrange(RETRIES):
             try:
-                response = dns.query.udp(message, random.choice(self.resolvers), timeout=1)
+                response = dns.query.udp(message, random.choice(self.resolvers), timeout=self.timeout)
                 return response.to_wire()
             except Exception as e:
                 log.exception(e)

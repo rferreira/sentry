@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from __future__ import absolute_import
-import sys, os.path, logging, argparse, time, os, sys, json
+import sys, os.path, logging, argparse, time, os, sys, json, multiprocessing
 from sentry import core
 from sentry import errors
 from sentry import benchmark
@@ -23,8 +23,9 @@ def main():
 
     # benchmark options:
     group = parser.add_argument_group('benchmark options')
-    group.add_argument('-s','--server', help='server port in server:port format')
-    group.add_argument('-n','--concurrency', default=1, help='defaults to 1')
+    group.add_argument('-s','--server', help='server:port to test')
+    group.add_argument('-n','--concurrency', default=multiprocessing.cpu_count(), help='defaults to the number of available cpus')
+    group.add_argument('-l','--limit', help='limits test run to a specific number of lookups', default=0, type=int)
 
     options = parser.parse_args()
 
@@ -38,15 +39,13 @@ def main():
         log.setLevel(logging.DEBUG)
 
     log.debug('running in debug mode - version: %s' % ver)
-    log.info('sentry is arming itself...')
-
 
     if options.benchmark:
         if options.server is None:
             print('please specify the server to benchmark with --server')
             sys.exit(1)
 
-        b = benchmark.SentryBenchmark(server=options.server,threadpool_size=int(options.concurrency))
+        b = benchmark.SentryBenchmark(server=options.server,workers=int(options.concurrency), limit=options.limit)
         b.start()
         sys.exit(0)
 
