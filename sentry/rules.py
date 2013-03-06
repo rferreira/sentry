@@ -1,11 +1,13 @@
 import sys, logging, re, random
 
+import futures
+
 import dns
 import dns.rrset
 import dns.query
 import dns.name
 
-from sentry import stats, errors
+from sentry import stats, errors, profile
 
 log = logging.getLogger(__name__)
 RETRIES = 3
@@ -48,6 +50,7 @@ class RedirectRule(Rule):
 
         super(RedirectRule,self).__init__(settings, domain, args)
 
+    @profile.howfast
     def dispatch(self, message, *args, **extras):
         response = dns.message.make_response(message)
         response.answer.append(
@@ -65,6 +68,7 @@ class BlockRule(Rule):
         re.compile(r'^block (?P<domain>.*)$',flags=re.MULTILINE)
     ]
 
+    @profile.howfast
     def dispatch(self, message, *args, **extras):
         context = extras.pop('context', {})
         log.warn('blocking query: %s matched by rule: %s with context: %s' % (message.question[0].name, self.domain, context) )
@@ -99,6 +103,7 @@ class ConditionalBlockRule(Rule):
 
         super(ConditionalBlockRule,self).__init__(settings, domain, args)
 
+    @profile.howfast
     def dispatch(self, message, *args, **extras):
         context = extras.pop('context', {})
 
@@ -127,6 +132,7 @@ class LoggingRule(Rule):
         re.compile(r'^log (?P<domain>.*)$',flags=re.MULTILINE)
     ]
 
+    @profile.howfast
     def dispatch(self,message, *args, **extras):
         context = extras.pop('context', {})
         log.info('logging query: %s matched by rule: %s with context: %s' % (message.question[0].name, self.domain, context) )
@@ -153,17 +159,29 @@ class ResolveRule(Rule):
         self.timeout = settings.get('resolution_timeout', DEFAULT_TIMEOUT)
         log.debug('timeout: %d' % self.timeout)
 
+        self.pool = futures.ThreadPoolExecutor(max_workers=len(self.resolvers))
+
         super(ResolveRule,self).__init__(settings, domain, args)
 
+    @profile.howfast
     def dispatch(self, message, *args, **extras):
-        for x in xrange(RETRIES):
-            try:
-                response = dns.query.udp(message, random.choice(self.resolvers), timeout=self.timeout)
-                return response.to_wire()
-            except Exception as e:
-                log.exception(e)
 
-            raise errors.NetworkError('could not resolve query %s using %s' % (message, self.resolvers))
+        # used for querying dns servers in parallel:
+        @profile.howfast
+        def _resolver(message, resolver):
+            log.debug('sending %s to %s ' % (message,resolver))
+            return dns.query.udp(message, resolver, timeout=self.timeout).to_wire()
+
+        fs = [ self.pool.submit( _resolver, message, resolver) for resolver in self.resolvers ]
+        result = futures.wait(fs,return_when=futures.FIRST_COMPLETED).done.pop()
+
+        if not result.exception():
+            return result.result()
+
+        else:
+            log.error(result.exception())
+
+        raise errors.NetworkError('could not resolve query %s using %s' % (message, self.resolvers))
 
 class RewriteRule(Rule):
     """
@@ -181,6 +199,7 @@ class RewriteRule(Rule):
         self.pattern = args['pattern']
         super(RewriteRule,self).__init__(settings, domain, args)
 
+    @profile.howfast
     def dispatch(self, message, *args, **extras):
         log.debug('domain: %s pattern: %s message: %s' % (self.domain, self.pattern, message))
         message.question[0].name = dns.name.from_text(self.pattern)

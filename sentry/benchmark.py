@@ -3,13 +3,17 @@ import time, prettytable, threading
 
 from Queue import Queue
 
+import futures
 import requests
 import dns.query
 
 from sentry import counter
 
 log = logging.getLogger(__name__)
-DEFAULT_TIMEOUT = 30.0 # 30 seconds query timeout
+DEFAULT_TIMEOUT = 1.0 # 1 seconds query timeout
+
+
+
 
 class SentryBenchmark(object):
     """
@@ -22,7 +26,6 @@ class SentryBenchmark(object):
     def __init__(self, server, workers, limit):
         log.info('starting benchmark')
 
-        self.queue = Queue()
 
         self.server, self.port = server.split(':')
         self.limit = limit
@@ -30,21 +33,18 @@ class SentryBenchmark(object):
         log.info('using %d workers' % workers)
 
         # build threadpool
-        self.workers = [
-            threading.Thread(target=self.worker) for i in range(workers)
-        ]
+        self.executor = futures.ThreadPoolExecutor(max_workers=workers)
 
 
     def start(self):
 
         # step 1 download alexas site list:
         path = os.path.join(tempfile.gettempdir(), 'alexas-cache')
-        log.info('downloading Alexas sites from %s to %s so it can be reused later' % (self.ALEXA_URL,path))
 
         # seeing if the cache is still around
         if not os.path.exists(path):
             with open(path, 'wb') as fd:
-                log.debug('writing file to %s ' % fd.name)
+                log.info('downloading Alexas sites from %s to %s so it can be reused later' % (self.ALEXA_URL,path))
                 r = requests.get(self.ALEXA_URL, stream=True)
                 for chunk in iter(lambda: r.raw.read(1024),''):
                     fd.write(chunk)
@@ -56,7 +56,7 @@ class SentryBenchmark(object):
             log.info('using local cache...')
 
         # loading all sites into dispatch queue
-        entries = 0
+        entries = []
 
         if self.limit >0:
             log.info('limiting run to %d entries' % self.limit)
@@ -68,30 +68,43 @@ class SentryBenchmark(object):
 
             for row in reader:
                 log.debug(row[1])
-                self.queue.put(row[1])
-                entries+=1
+                entries.append(row[1])
 
-                if self.limit > 0 and entries >= self.limit:
+                if self.limit > 0 and len(entries) >= self.limit:
                     log.info('limited reached, breaking')
                     break
 
 
+        status_thread = threading.Thread(target=self.status_worker)
+        status_thread.setDaemon(True)
+        status_thread.start()
+
         log.info('starting processing...')
         self.stats = counter.Counter()
+        self.processed_entries = 0
 
         start_time = time.time()
 
-        for thread in self.workers:
-            thread.setDaemon(True)
-            thread.start()
-
-        log.info('%d domain names loaded'  % self.queue.qsize())
+        log.info('%d domain names loaded'  % len(entries))
         log.info('test running')
 
-        self.queue.join()
+        fs = []
+        for e in entries:
+            fs.append(self.executor.submit(self.work_handler, e))
+
+        for future in futures.as_completed(fs):
+            try:
+                log.debug('result %s' % future.result())
+            except Exception as e:
+                self.stats.add('queries_failed')
+                log.exception(e)
+
 
         log.info('benchmark done')
-        self.stats.add('elapsed_time_seconds', int(time.time() - start_time) )
+        elapsed_time_seconds = int(time.time() - start_time)
+        elapsed_time_seconds = elapsed_time_seconds if elapsed_time_seconds > 0 else 1
+        self.stats.add('elapsed_time_seconds', elapsed_time_seconds )
+        self.stats.add('queries_per_second', int(len(entries)/elapsed_time_seconds) )
 
         # dumping results:
         x = prettytable.PrettyTable(['metric', 'value'])
@@ -105,29 +118,27 @@ class SentryBenchmark(object):
 
         return
 
-
-    def worker(self):
-        log.debug('worker started')
+    def status_worker(self):
         while True:
-            item = self.queue.get()
+            time.sleep(5)
+            log.info('pending entries: %d' % (entries - self.processed_entries) )
 
-            try:
-                log.debug('resolving %s' % item )
 
-                self.stats.inc_ops('queries')
+    def work_handler(self, item):
+        self.processed_entries += 1
+        log.debug('resolving %s' % item )
 
-                start_time = time.time()
-                message = dns.message.make_query(item, 'A')
-                response = dns.query.udp(message, self.server, port=int(self.port),timeout=DEFAULT_TIMEOUT)
-                log.debug(response.answer)
+        start_time = time.time()
+        message = dns.message.make_query(item, 'A')
+        response = dns.query.udp(message, self.server, port=int(self.port),timeout=DEFAULT_TIMEOUT)
+        log.debug(response.answer)
 
-                self.stats.add_avg('response_time_msec', (time.time() - start_time)*1000 )
-                self.stats.dec_ops('queries')
+        assert len(response.answer) >0
 
-            except Exception as e:
-                self.stats.inc_ops('queries_failed')
-                log.exception(e)
+        self.stats.add_avg('response_time_msec', (time.time() - start_time)*1000 )
+        self.stats.add('queries_successful')
 
-            finally:
-                self.queue.task_done()
+        return response.answer
+
+
 
