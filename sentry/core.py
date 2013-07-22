@@ -7,7 +7,7 @@ import dns.query
 import prettytable
 
 import sentry.parser
-from sentry.net import Server
+from sentry.network import Server
 from sentry import rules, errors, stats, domain_stats
 from sentry.counter import count_calls
 

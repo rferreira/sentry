@@ -5,14 +5,12 @@ from Queue import Queue
 
 import futures
 import requests
-import dns.query
+import dns.query, dns.reversename, dns.exception
 
 from sentry import counter
 
 log = logging.getLogger(__name__)
 DEFAULT_TIMEOUT = 1.0 # 1 seconds query timeout
-
-
 
 
 class SentryBenchmark(object):
@@ -31,6 +29,14 @@ class SentryBenchmark(object):
         self.limit = limit
 
         log.info('using %d workers' % workers)
+
+        # sanity checking the server name:
+        try:
+            dns.reversename.from_address(self.server)
+        except dns.exception.SyntaxError:
+            raise Exception('server name must be an ip not DNS name, you gave us: %s' % self.server)
+
+        log.info('benchmarking host: %s port: %s' % (self.server, self.port))
 
         # build threadpool
         self.executor = futures.ThreadPoolExecutor(max_workers=workers)
@@ -56,10 +62,19 @@ class SentryBenchmark(object):
             log.info('using local cache...')
 
         # loading all sites into dispatch queue
-        entries = []
+        processed_queries = 0
 
         if self.limit >0:
             log.info('limiting run to %d entries' % self.limit)
+
+
+        log.info('starting processing...')
+        self.stats = counter.Counter()
+
+        processed_entries = 0
+
+        start_time = time.time()
+
 
         with open(path, 'r') as fd:
             zfd = zipfile.ZipFile(fd)
@@ -67,44 +82,42 @@ class SentryBenchmark(object):
             reader = csv.reader(data)
 
             for row in reader:
-                log.debug(row[1])
-                entries.append(row[1])
-
-                if self.limit > 0 and len(entries) >= self.limit:
+                if self.limit > 0 and processed_entries == self.limit:
                     log.info('limited reached, breaking')
                     break
 
+                item = row[1]
 
-        status_thread = threading.Thread(target=self.status_worker)
-        status_thread.setDaemon(True)
-        status_thread.start()
+                # performing query:
+                log.debug('resolving %s' % item )
 
-        log.info('starting processing...')
-        self.stats = counter.Counter()
-        self.processed_entries = 0
+                try:
+                    response_start_time = time.time()
+                    message = dns.message.make_query(item, 'A')
+                    response = dns.query.udp(message, self.server, port=int(self.port),timeout=DEFAULT_TIMEOUT)
+                    log.debug(response.answer)
 
-        start_time = time.time()
+                    assert len(response.answer) >0
 
-        log.info('%d domain names loaded'  % len(entries))
-        log.info('test running')
+                    response_elapsed_time = (time.time() - response_start_time)*1000
 
-        fs = []
-        for e in entries:
-            fs.append(self.executor.submit(self.work_handler, e))
+                    log.debug('query in %d msec' % response_elapsed_time)
+                    self.stats.add_avg('response_time_msec', response_elapsed_time  )
+                    self.stats.add('queries_successful')
 
-        for future in futures.as_completed(fs):
-            try:
-                log.debug('result %s' % future.result())
-            except Exception as e:
-                self.stats.add('queries_failed')
-                log.exception(e)
+                except Exception as e:
+                    log.exception(e)
+                    self.stats.add('queries_failed')
+
+                finally:
+                    processed_entries +=1
 
 
         log.info('benchmark done')
         elapsed_time_seconds = int(time.time() - start_time)
         elapsed_time_seconds = elapsed_time_seconds if elapsed_time_seconds > 0 else 1
         self.stats.add('elapsed_time_seconds', elapsed_time_seconds )
-        self.stats.add('queries_per_second', int(len(entries)/elapsed_time_seconds) )
+        self.stats.add('queries_per_second', int(processed_entries/elapsed_time_seconds) )
 
         # dumping results:
         x = prettytable.PrettyTable(['metric', 'value'])
@@ -114,31 +127,4 @@ class SentryBenchmark(object):
             x.add_row([r['name'], r['value']])
 
         log.info('results: \n' + str(x) )
-
-
-        return
-
-    def status_worker(self):
-        while True:
-            time.sleep(5)
-            log.info('pending entries: %d' % (entries - self.processed_entries) )
-
-
-    def work_handler(self, item):
-        self.processed_entries += 1
-        log.debug('resolving %s' % item )
-
-        start_time = time.time()
-        message = dns.message.make_query(item, 'A')
-        response = dns.query.udp(message, self.server, port=int(self.port),timeout=DEFAULT_TIMEOUT)
-        log.debug(response.answer)
-
-        assert len(response.answer) >0
-
-        self.stats.add_avg('response_time_msec', (time.time() - start_time)*1000 )
-        self.stats.add('queries_successful')
-
-        return response.answer
-
-
 
