@@ -75,6 +75,30 @@ class SentryBenchmark(object):
 
         start_time = time.time()
 
+        def fire(item):
+            # performing query:
+            log.debug('resolving %s' % item )
+
+            try:
+                response_start_time = time.time()
+                message = dns.message.make_query(item, 'A')
+                response = dns.query.udp(message, self.server, port=int(self.port),timeout=DEFAULT_TIMEOUT)
+                log.debug(response.answer)
+
+                assert len(response.answer) >0
+
+                response_elapsed_time = (time.time() - response_start_time)*1000
+
+                log.debug('query in %d msec' % response_elapsed_time)
+                self.stats.add_avg('response_time_msec', response_elapsed_time  )
+                self.stats.add('queries_successful')
+
+            except Exception as e:
+                log.exception(e)
+                self.stats.add('queries_failed')
+
+
+        fs = []
 
         with open(path, 'r') as fd:
             zfd = zipfile.ZipFile(fd)
@@ -87,31 +111,11 @@ class SentryBenchmark(object):
                     break
 
                 item = row[1]
+                fs.append(self.executor.submit(fire, item))
+                processed_entries +=1
 
-                # performing query:
-                log.debug('resolving %s' % item )
 
-                try:
-                    response_start_time = time.time()
-                    message = dns.message.make_query(item, 'A')
-                    response = dns.query.udp(message, self.server, port=int(self.port),timeout=DEFAULT_TIMEOUT)
-                    log.debug(response.answer)
-
-                    assert len(response.answer) >0
-
-                    response_elapsed_time = (time.time() - response_start_time)*1000
-
-                    log.debug('query in %d msec' % response_elapsed_time)
-                    self.stats.add_avg('response_time_msec', response_elapsed_time  )
-                    self.stats.add('queries_successful')
-
-                except Exception as e:
-                    log.exception(e)
-                    self.stats.add('queries_failed')
-
-                finally:
-                    processed_entries +=1
-
+        self.executor.shutdown()
 
         log.info('benchmark done')
         elapsed_time_seconds = int(time.time() - start_time)

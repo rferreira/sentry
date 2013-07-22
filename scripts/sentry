@@ -24,7 +24,7 @@ def main():
     # benchmark options:
     group = parser.add_argument_group('benchmark options')
     group.add_argument('-s','--server', help='server:port to test')
-    group.add_argument('-n','--concurrency', default=multiprocessing.cpu_count(), help='defaults to the number of available cpus')
+    group.add_argument('-n','--concurrency', default=1, help='defaults to 1')
     group.add_argument('-l','--limit', help='limits test run to a specific number of lookups', default=0, type=int)
 
     options = parser.parse_args()
