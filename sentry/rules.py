@@ -3,9 +3,11 @@ import sys, logging, re, random
 import futures
 
 import dns
+import dns.ipv4
 import dns.rrset
 import dns.query
 import dns.name
+import dns.resolver
 
 from sentry import stats, errors, profile
 
@@ -182,6 +184,45 @@ class ResolveRule(Rule):
             log.error(result.exception())
 
         raise errors.NetworkError('could not resolve query %s using %s' % (message, self.resolvers))
+
+
+def is_ipv4(arg):
+    try:
+        dns.ipv4.inet_aton(arg)
+        return True
+    except:
+        return False
+
+
+class ForgeRule(Rule):
+    """
+    forges an A query response, returning a hardcoded IP or resolved IP of a
+    host we provide
+    """
+
+    SYNTAX = [
+        re.compile(r'^forge (?P<domain>.*) to (?P<destination>.*)$', flags=re.MULTILINE)
+    ]
+
+    def __init__(self, settings, domain, args):
+        self.destination = args['destination']
+        if not is_ipv4(self.destination):
+            if not self.destination.endswith('.'):
+                self.destination += '.'
+        super(ForgeRule, self).__init__(settings, domain, args)
+
+    @profile.howfast
+    def dispatch(self, message, *args, **extras):
+        if is_ipv4(self.destination):
+            iplist = [self.destination]
+        else:
+            iplist = [str(a) for a in dns.resolver.query(self.destination, 'A')]
+        response = dns.message.make_response(message)
+        for ip in iplist:
+            name = message.question[0].name
+            response.answer.append(dns.rrset.from_text(name, DEFAULT_TTL, dns.rdataclass.IN, dns.rdatatype.A, str(ip)))
+        return response.to_wire()
+
 
 class RewriteRule(Rule):
     """

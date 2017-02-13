@@ -11,7 +11,7 @@ RULES = [
 	rules.LoggingRule,
 	rules.ResolveRule,
 	rules.RewriteRule,
-
+	rules.ForgeRule,
 ]
 
 @profile.howfast

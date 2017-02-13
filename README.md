@@ -105,6 +105,19 @@ A resolve rule tells sentry to return to resolve all queries matching a certain 
 
 If you list more than one upstream DNS server, sentry will query all of them in parallel and return the first successful response (new feature on v0.5).
 
+**Forging a query:**
+
+A forge rule tells sentry to completely rewrite A-record queries to return an
+IP address that you provide. This is useful for isolated testing of production
+software. You can point all DNS queries to an IP address using:
+
+    "forge ^(.*).mycompany.com to 192.168.1.1"
+
+You may also forge an address using the result of an upstream DNS lookup. For
+example, to forward all calls to `api.mycompany.com` to `dev.mycompany.com`:
+
+    "forge ^api.mycompany.com to dev.mycompany.com"
+
 **Here's an example of a configuration file including multiple rules:**
 
     {
@@ -119,6 +132,8 @@ If you list more than one upstream DNS server, sentry will query all of them in 
 
     		"redirect ^(.*)nytimes.com to google.com",
     		"redirect ^(.*)reddit.com to google.com",
+
+    		"forge ^api.mycompany.com to dev.mycompany.com",
 
     		"resolve ^(.*)facebook.com using 10.10.1.2 ",
     		"resolve ^(.*) using 8.8.4.4, 8.8.8.8"
